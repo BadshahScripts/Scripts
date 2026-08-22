@@ -1,10 +1,11 @@
 -- Melt The Ice Script Hub
--- UI Design & Features by Badshah Scripts
+-- Custom UI & Auto-Collect for Items / Frozen Fish
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 -- Global Feature Flags
@@ -129,7 +130,6 @@ local function createToggle(name, yPos, flagKey)
     end)
 end
 
--- Render UI Items
 createToggle("Auto Melt", 58, "AutoMelt")
 createToggle("Auto Collect Drops", 108, "AutoCollect")
 createToggle("Auto Rebirth", 158, "AutoRebirth")
@@ -223,9 +223,9 @@ Footer.TextColor3 = Color3.fromRGB(150, 85, 230)
 Footer.TextSize = 13
 Footer.Parent = MainFrame
 
--- Automation Loops & Core Mechanics
+-- Mechanics & Automation Loops
 
--- 1. WalkSpeed Enforcer Loop
+-- 1. WalkSpeed Loop
 task.spawn(function()
     while task.wait(0.2) do
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -236,11 +236,10 @@ task.spawn(function()
     end
 end)
 
--- 2. Auto-Melt Loop (Tool Activation & Remote Scanning)
+-- 2. Auto-Melt Loop
 task.spawn(function()
     while task.wait(0.1) do
         if Flags.AutoMelt and LocalPlayer.Character then
-            -- Equip tool if available
             local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool") or LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
             if tool and tool.Parent ~= LocalPlayer.Character then
                 tool.Parent = LocalPlayer.Character
@@ -249,7 +248,6 @@ task.spawn(function()
                 tool:Activate()
             end
             
-            -- Generic Melt Remote trigger fallback
             for _, v in pairs(ReplicatedStorage:GetDescendants()) do
                 if v:IsA("RemoteEvent") and (v.Name:lower():find("melt") or v.Name:lower():find("hit") or v.Name:lower():find("click")) then
                     pcall(function() v:FireServer() end)
@@ -259,16 +257,55 @@ task.spawn(function()
     end
 end)
 
--- 3. Auto-Collect Drops Loop
+-- 3. Targeted Auto-Collect Drops Loop (Handles Fish, Drops, Cash, Prompts)
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(0.15) do
         if Flags.AutoCollect and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = LocalPlayer.Character.HumanoidRootPart
-            for _, item in pairs(workspace:GetDescendants()) do
-                if item:IsA("BasePart") and (item.Name:lower():find("drop") or item.Name:lower():find("coin") or item.Name:lower():find("token") or item.Name:lower():find("reward")) then
-                    pcall(function()
-                        item.CFrame = hrp.CFrame
-                    end)
+            
+            for _, obj in pairs(Workspace:GetDescendants()) do
+                local name = obj.Name:lower()
+                local isDrop = name:find("fish") or name:find("drop") or name:find("coin") or name:find("cash") or name:find("reward") or name:find("item")
+                
+                -- Check for Billboard label drops (e.g., Big Frozen Fish)
+                if not isDrop and obj:IsA("BillboardGui") then
+                    local parentObj = obj.Parent
+                    if parentObj and (parentObj:IsA("BasePart") or parentObj:IsA("Model")) then
+                        isDrop = true
+                        obj = parentObj
+                    end
+                end
+                
+                if isDrop then
+                    -- Method A: Teleport Part
+                    if obj:IsA("BasePart") and not obj.Anchored then
+                        pcall(function()
+                            obj.CFrame = hrp.CFrame
+                            if typeof(firetouchinterest) == "function" then
+                                firetouchinterest(hrp, obj, 0)
+                                firetouchinterest(hrp, obj, 1)
+                            end
+                        end)
+                    elseif obj:IsA("Model") then
+                        local primary = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                        if primary and not primary.Anchored then
+                            pcall(function()
+                                primary.CFrame = hrp.CFrame
+                                if typeof(firetouchinterest) == "function" then
+                                    firetouchinterest(hrp, primary, 0)
+                                    firetouchinterest(hrp, primary, 1)
+                                end
+                            end)
+                        end
+                    end
+                    
+                    -- Method B: Fire Proximity Prompt if exists
+                    local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt and typeof(fireproximityprompt) == "function" then
+                        pcall(function()
+                            fireproximityprompt(prompt)
+                        end)
+                    end
                 end
             end
         end
